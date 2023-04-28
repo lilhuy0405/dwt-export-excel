@@ -112,6 +112,7 @@ app.use(express.json());
 app.post('/get-excel', async (req, res) => {
   try {
     const {token, apiUrl} = req.body;
+    console.log(token, apiUrl);
     const {
       reportTaskParams,
       targetDetailParams,
