@@ -34,8 +34,9 @@ function getKpiKey(obj) {
 
 const fetch = require('node-fetch');
 const querystring = require("querystring");
+const { log } = require('console');
 
-async function exportExcel(targetDetail, reportTask) {
+async function exportExcel(targetDetail, reportTask, user) {
   //this will be take from the api
 
 
@@ -49,12 +50,18 @@ async function exportExcel(targetDetail, reportTask) {
   //write the data
   const tempFile = await workbook.xlsx.readFile('temp.xlsx')
   const toWriteSheet = tempFile.getWorksheet(1);
+  if (user) {
+    //write user
+    toWriteSheet.getCell('T1').value = user?.name ?? '';
+    toWriteSheet.getCell('T2').value = user?.departement?.name ?? '';
+    toWriteSheet.getCell('T3').value = user?.position?.name ?? '';;
+  }
   //write the data
   let startWrite = 9;
   for (let i = 0; i < targetDetail.length + reportTask.length; i++) {
     const task = i < targetDetail.length ? targetDetail[i] : reportTask[i - targetDetail.length];
     const taskName = task.name;
-    const {name: kpiKeyName, quantity: kpiKeyQuantity, unit: kpiKeyUnit} = getKpiKey(task);
+    const { name: kpiKeyName, quantity: kpiKeyQuantity, unit: kpiKeyUnit } = getKpiKey(task);
     const executionPlan = task.executionPlan ?? '';
     const manday = 'manday' in task ? task.manday : task.manDay;
     const deadline = task.deadline ? moment(task.deadline).format('DD/MM/YYYY') : '';
@@ -111,11 +118,12 @@ app.use(cors());
 app.use(express.json());
 app.post('/get-excel', async (req, res) => {
   try {
-    const {token, apiUrl} = req.body;
+    const { token, apiUrl } = req.body;
     console.log(token, apiUrl);
     const {
       reportTaskParams,
       targetDetailParams,
+      userId
     } = req.body;
     const reportTaskQueryString = querystring.stringify(reportTaskParams);
     const targetDetailQueryString = querystring.stringify(targetDetailParams);
@@ -140,16 +148,30 @@ app.post('/get-excel', async (req, res) => {
         'Content-Type': 'application/json',
       }
     });
-    if(!reportTaskRes.ok) {
+    if (!reportTaskRes.ok) {
       throw new Error('Get report task failed');
     }
 
     const reportTaskData = await reportTaskRes.json();
     const reportTask = reportTaskData.data.data;
+    //fetch user
+    const userRes = await fetch(`${apiUrl}/users/${userId}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
 
+      }
+    });
+    if (!userRes.ok) {
+      throw new Error('Get user failed');
+    }
+    const userData = await userRes.json();
+    const user = userData.data;
+    console.log(user);
 
     // const {targetDetail, reportTask} = req.body;
-    await exportExcel(targetDetail, reportTask);
+    await exportExcel(targetDetail, reportTask, user);
 
 
     //send output file to hosst
